@@ -1,0 +1,1152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>File Organization Simulation — Interactive Visualizer</title>
+
+<!-- =====================
+     STYLES (Many details + themes + animations)
+     ===================== -->
+<style>
+:root{
+  --bg-1: #0f1724;
+  --bg-2: #19202b;
+  --accent: #6a11cb;
+  --accent-2: #2575fc;
+  --panel: rgba(255,255,255,0.04);
+  --muted: rgba(255,255,255,0.6);
+  --success: #2dd4bf;
+  --danger: #ff6b6b;
+  --glass: rgba(255,255,255,0.03);
+}
+
+/* Layout */
+*{box-sizing:border-box}
+html,body{height:100%; margin:0; font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; background: linear-gradient(135deg,var(--bg-1),var(--bg-2)); color:#eef2ff}
+.app {
+  display:grid;
+  grid-template-columns: 320px 1fr 360px;
+  grid-template-rows: 72px 1fr 56px;
+  min-height:100vh;
+  gap:20px;
+  padding:18px;
+}
+/* Responsive */
+@media (max-width:1100px){
+  .app{grid-template-columns: 1fr; grid-template-rows: 72px auto auto; padding:12px;}
+  .sidebar-right{order:3}
+  .main{order:2}
+  .sidebar-left{order:1; display:flex; justify-content:center}
+}
+
+/* Header */
+.header {
+  grid-column:1/-1;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:12px 18px;
+  background: linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  border-radius:12px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.45);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.02);
+}
+.title{
+  display:flex; flex-direction:column;
+}
+.title h1{margin:0; font-size:20px; letter-spacing:0.3px}
+.title p{margin:0; color:var(--muted); font-size:12px}
+.header .controls{display:flex; gap:10px; align-items:center}
+
+/* Panels */
+.panel {
+  background: var(--panel);
+  padding:16px;
+  border-radius:12px;
+  border: 1px solid rgba(255,255,255,0.02);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.45);
+}
+
+/* Sidebar left (controls) */
+.sidebar-left { padding:10px; height: calc(100vh - 160px); overflow:auto; }
+.section-title { font-size:13px; color:var(--muted); margin-bottom:8px; text-transform:uppercase; letter-spacing:1px }
+
+/* Controls */
+.controls-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px; }
+.btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:10px 12px; border-radius:10px; border:none; cursor:pointer; color:white; background: linear-gradient(90deg,var(--accent),var(--accent-2)); box-shadow: 0 6px 18px rgba(38,0,66,0.35); transition: transform .14s ease; }
+.btn:hover{ transform: translateY(-3px) scale(1.01) }
+.btn.ghost{background: transparent; border:1px solid rgba(255,255,255,0.06); color:var(--muted) }
+.small { padding:8px 10px; font-size:13px }
+
+/* Input */
+.input { width:100%; padding:10px; border-radius:8px; border:none; background: rgba(255,255,255,0.02); color:inherit }
+.select { width:100%; padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.03); background:transparent; color:inherit }
+
+/* Main visual area */
+.main { padding:10px; height: calc(100vh - 160px); overflow:auto; display:flex; flex-direction:column; gap:12px; }
+.canvas-wrap { display:flex; gap:12px; align-items:flex-start; }
+.visual { flex:1; padding:12px; border-radius:12px; min-height:420px; position:relative; overflow:hidden; background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));}
+
+/* Right sidebar logs and helpers */
+.sidebar-right { padding:10px; height: calc(100vh - 160px); overflow:auto; display:flex; flex-direction:column; gap:10px; }
+.log { font-family: monospace; font-size:13px; color: #dbeafe; background: rgba(0,0,0,0.12); padding:8px; border-radius:8px; height:220px; overflow:auto }
+
+/* Blocks (visual rectangles used for simulation) */
+.block {
+  display:inline-block;
+  height:40px;
+  min-width:40px;
+  border-radius:6px;
+  margin:6px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+  color:#071331;
+  position:relative;
+  overflow:hidden;
+  border:1px solid rgba(255,255,255,0.03);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.45);
+}
+.block .label { position:absolute; left:8px; top:6px; font-size:12px; color:#e6eefc; text-shadow: 0 1px 1px rgba(0,0,0,0.6) }
+
+/* animations for blocks */
+@keyframes floatIn {
+  0% { opacity:0; transform: translateY(30px) scale(.95) }
+  100% { opacity:1; transform: translateY(0) scale(1) }
+}
+
+/* typing indicator styling (three dots) */
+.typing-indicator { display:inline-flex; gap:6px; align-items:center; padding:6px 8px; border-radius:6px; background: rgba(255,255,255,0.03); }
+.dot { width:7px; height:7px; border-radius:50%; background:#fff; opacity:0.6; animation: blink 1s infinite; }
+.dot:nth-child(2){ animation-delay:.15s } .dot:nth-child(3){ animation-delay:.3s }
+
+/* footer */
+.footer {
+  grid-column:1/-1;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  padding:12px;
+  color:var(--muted);
+  font-size:13px;
+}
+
+/* Theme swatches */
+.theme-row { display:flex; gap:8px; align-items:center }
+.swatch { width:32px; height:24px; border-radius:6px; cursor:pointer; border:1px solid rgba(255,255,255,0.04) }
+.swatch:hover{ transform: translateY(-3px); transition: .12s }
+
+/* fancy micro animations */
+.pulse { animation: pulse 1.6s infinite; }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(50,100,255,0.2) } 70% { box-shadow: 0 0 0 12px rgba(50,100,255,0) } 100% { box-shadow: 0 0 0 0 rgba(50,100,255,0) } }
+
+/* accordions and step visual */
+.accordion { border-radius:8px; padding:8px; border:1px solid rgba(255,255,255,0.02); background: rgba(255,255,255,0.02) }
+.step { margin:8px 0; padding:8px; border-radius:8px; background: rgba(255,255,255,0.01) }
+
+/* tooltips */
+.tooltip { position:relative; display:inline-block }
+.tooltip .tooltiptext { visibility:hidden; width:200px; background:rgba(0,0,0,0.7); color:#fff; text-align:left; border-radius:6px; padding:8px; position:absolute; z-index:1000; bottom:125%; left:50%; transform:translateX(-50%); opacity:0; transition:opacity .14s }
+.tooltip:hover .tooltiptext { visibility:visible; opacity:1 }
+
+/* nice scrollbars */
+::-webkit-scrollbar{height:10px;width:10px}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.05);border-radius:8px}
+</style>
+
+</head>
+<body>
+  <div class="app">
+    <!-- header -->
+    <div class="header panel">
+      <div class="title">
+        <h1>File Organization Simulator</h1>
+        <p>Interactive visual explanations: Sequential • Variable-length • Indexed • Hash • B-Tree Overview</p>
+      </div>
+      <div class="controls">
+        <button class="btn small" id="btnDemo">Load Demo</button>
+        <button class="btn small" id="btnReset">Reset</button>
+        <div style="width:8px"></div>
+        <div style="display:flex; gap:8px; align-items:center">
+          <div style="font-size:12px; color:var(--muted)">Theme</div>
+          <div class="theme-row">
+            <div class="swatch" id="swLight" title="Light" style="background:linear-gradient(90deg,#f5f7fa,#e9eef5)"></div>
+            <div class="swatch" id="swDark" title="Dark" style="background:linear-gradient(90deg,#0b1220,#1b2a44)"></div>
+            <div class="swatch" id="swBlue" title="Blue" style="background:linear-gradient(90deg,#6a11cb,#2575fc)"></div>
+            <div class="swatch" id="swGreen" title="Green" style="background:linear-gradient(90deg,#11998e,#38ef7d)"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- left sidebar: controls -->
+    <div class="sidebar-left panel">
+      <div class="section-title">Simulation Controls</div>
+
+      <div class="accordion">
+        <div style="display:flex; gap:8px">
+          <select id="simType" class="select">
+            <option value="sequential">Sequential File</option>
+            <option value="variable">Variable-length (AVAIL LIST)</option>
+            <option value="indexed">Indexed File</option>
+            <option value="hash">Hash File</option>
+            <option value="btree">B-Tree Overview</option>
+          </select>
+        </div>
+
+        <div style="margin-top:10px" id="controlsContainer">
+          <!-- dynamic area filled by JS per simType -->
+        </div>
+
+        <div style="margin-top:12px; display:flex; gap:8px">
+          <button class="btn" id="btnInsert">Insert</button>
+          <button class="btn ghost" id="btnDelete">Delete</button>
+          <button class="btn ghost" id="btnSearch">Search</button>
+        </div>
+
+        <div style="margin-top:12px">
+          <div style="display:flex; gap:8px">
+            <input id="inputId" class="input" placeholder="Record ID (int)">
+            <input id="inputSize" class="input" placeholder="Size (bytes)">
+          </div>
+          <input id="inputName" class="input" placeholder="Name (optional)" style="margin-top:8px">
+        </div>
+
+        <div style="margin-top:12px; display:flex; gap:8px">
+          <button class="btn small" id="btnStep">Step</button>
+          <button class="btn small" id="btnRunFast">Run Fast</button>
+        </div>
+
+        <div style="margin-top:12px">
+          <div class="section-title">Placement Policy (Variable-length)</div>
+          <select id="placement" class="select">
+            <option value="first">First-fit</option>
+            <option value="best">Best-fit</option>
+            <option value="worst">Worst-fit</option>
+          </select>
+        </div>
+
+        <div style="margin-top:12px">
+          <div class="section-title">Hash Settings</div>
+          <input id="hashSize" class="input" placeholder="Hash table size (buckets)" value="10">
+          <select id="collision" class="select" style="margin-top:6px">
+            <option value="chaining">Chaining</option>
+            <option value="linear">Linear probing</option>
+          </select>
+        </div>
+
+      </div>
+
+      <div style="height:12px"></div>
+
+      <div class="section-title">Extras</div>
+      <div style="display:flex; gap:8px">
+        <button class="btn ghost" id="btnExport">Export</button>
+        <button class="btn ghost" id="btnImport">Import</button>
+      </div>
+
+      <div style="margin-top:12px" class="section-title">Documentation</div>
+      <div style="font-size:13px; color:var(--muted)">
+        <p>Use the controls to insert and manage records visually. Change simulation type to explore different file organization strategies. Use Step to observe mechanics.</p>
+      </div>
+    </div>
+
+    <!-- main area: visualization -->
+    <div class="main">
+      <div class="canvas-wrap">
+        <div class="visual panel" id="visualArea">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
+            <div style="font-weight:600">Visualization</div>
+            <div style="display:flex; gap:8px; align-items:center">
+              <div id="statusBadge" class="typing-indicator" style="display:none"><span style="color:var(--muted); font-size:13px">Processing</span>&nbsp;<div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+              <div id="legend" style="font-size:13px; color:var(--muted)">Legend: <span style="padding:2px 6px; border-radius:4px; background:linear-gradient(90deg,#0a84ff,#0a6bff); margin-left:8px">User</span> <span style="padding:2px 6px; border-radius:4px; background:linear-gradient(90deg,#4caf50,#2dbd6a); margin-left:8px">System</span></div>
+            </div>
+          </div>
+
+          <div id="visualCanvas" style="width:100%; height:calc(100% - 54px); border-radius:10px; padding:12px; overflow:auto; display:flex; flex-direction:column; gap:12px;"></div>
+        </div>
+
+        <div style="width:320px" class="panel">
+          <div style="font-weight:600">Quick Controls</div>
+          <div style="margin-top:8px; display:flex; flex-direction:column; gap:8px">
+            <button class="btn" id="btnRandom">Random Fill</button>
+            <button class="btn ghost" id="btnCompact">Compact (variable)</button>
+            <button class="btn ghost" id="btnRehash">Rehash (hash table)</button>
+          </div>
+
+          <div style="margin-top:12px" class="section-title">Statistics</div>
+          <div id="stats" style="font-size:14px; color:var(--muted)">
+            <div>Total records: <span id="statCount">0</span></div>
+            <div>Used space: <span id="statUsed">0</span> bytes</div>
+            <div>Free space: <span id="statFree">0</span> bytes</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" style="min-height:120px">
+        <div style="display:flex; justify-content:space-between; align-items:center">
+          <div style="font-weight:600">Action Log</div>
+          <div style="font-size:13px; color:var(--muted)"><span id="timeNow"></span></div>
+        </div>
+        <div id="actionLog" class="log" style="margin-top:8px"></div>
+      </div>
+    </div>
+
+    <!-- right sidebar -->
+    <div class="sidebar-right panel">
+      <div style="display:flex; justify-content:space-between; align-items:center">
+        <div style="font-weight:600">Simulation Steps</div>
+        <div style="color:var(--muted); font-size:13px">Step-by-step</div>
+      </div>
+
+      <div id="stepsPanel" style="margin-top:8px"></div>
+
+      <div style="margin-top:12px" class="section-title">Save / Load</div>
+      <div style="display:flex; gap:8px">
+        <button class="btn" id="btnSaveLocal">Save Locally</button>
+        <button class="btn ghost" id="btnLoadLocal">Load</button>
+      </div>
+
+      <div style="margin-top:12px" class="section-title">Help & Credits</div>
+      <div style="font-size:13px; color:var(--muted)">
+        <p>Project: File Organization Simulation</p>
+        <p>Team: Mohamed Bahaa & Rotaj Mohamed</p>
+      </div>
+
+    </div>
+
+    <!-- footer -->
+    <div class="footer panel">
+      <div style="display:flex; gap:16px; align-items:center; width:100%; justify-content:center">
+        <div style="font-size:13px; color:var(--muted)">Built for teaching and demonstration — interactive simulations with animations and visualization.</div>
+      </div>
+    </div>
+  </div>
+
+<!-- ===============================
+     JAVASCRIPT: core logic + animations
+     =============================== -->
+<script>
+/* Main app JS: large, detailed, interactive simulations.
+   Implements:
+   - sequential files simulation (simple array)
+   - variable-length with AVAIL list and placement policies
+   - indexed file (single-level)
+   - hash file (chaining/linear)
+   - b-tree overview (visual only)
+   - animation helpers and UI wiring
+*/
+
+// Utility helpers
+const $ = id => document.getElementById(id);
+const log = (txt) => {
+  const el = $('actionLog');
+  const now = new Date().toLocaleTimeString();
+  el.innerText = `${now} — ${txt}\n` + el.innerText;
+}
+
+// state
+let STATE = {
+  simType: 'sequential',
+  records: [], // generic record list
+  blocks: [], // layout blocks for visualization (for sequential)
+  avail: [], // for variable-length free list: {start, length}
+  index: {}, // for indexed files: id -> block index
+  hash: null, // object for hash simulation
+  capacity: 2000, // total bytes by default
+  used: 0,
+  stepQueue: [], // queued steps for animation
+  running: false,
+  theme: 'default'
+};
+
+function nowTime(){
+  $('timeNow').innerText = new Date().toLocaleString();
+}
+setInterval(nowTime, 1000);
+nowTime();
+
+// UI wiring
+document.querySelectorAll('.swatch').forEach(el=>{
+  el.addEventListener('click', () => {
+    const id = el.id;
+    if(id==='swLight') applyTheme('light');
+    if(id==='swDark') applyTheme('dark');
+    if(id==='swBlue') applyTheme('blue');
+    if(id==='swGreen') applyTheme('green');
+  });
+});
+
+$('simType').addEventListener('change', (e)=>{
+  STATE.simType = e.target.value;
+  setupControlsForType(STATE.simType);
+  resetSim();
+  log(`Switched simulation to: ${STATE.simType}`);
+});
+
+$('btnDemo').addEventListener('click', async ()=>{
+  await loadDemo();
+});
+$('btnReset').addEventListener('click', ()=>{
+  resetSim();
+  log('Simulation reset');
+});
+$('btnInsert').addEventListener('click', ()=> actionInsert(false));
+$('btnDelete').addEventListener('click', () => actionDelete());
+$('btnSearch').addEventListener('click', () => actionSearch());
+$('btnStep').addEventListener('click', stepOnce);
+$('btnRunFast').addEventListener('click', runFast);
+$('btnRandom').addEventListener('click', randomFill);
+$('btnCompact').addEventListener('click', compactVariable);
+$('btnRehash').addEventListener('click', rehash);
+$('btnExport').addEventListener('click', exportText);
+$('btnImport').addEventListener('click', importPrompt);
+$('btnSaveLocal').addEventListener('click', saveLocal);
+$('btnLoadLocal').addEventListener('click', loadLocal);
+
+// initial controls
+setupControlsForType(STATE.simType);
+render();
+
+function setupControlsForType(type){
+  const container = $('controlsContainer');
+  container.innerHTML = '';
+  if(type === 'sequential'){
+    container.innerHTML = `
+      <div class="section-title">Sequential Settings</div>
+      <div style="font-size:13px; color:var(--muted)">Appends keep list sorted by id</div>
+      <div style="margin-top:8px" class="controls-grid">
+        <input id="seqInsertPos" class="input" placeholder="Insert position (index) - optional">
+        <input id="seqDummy" class="input" placeholder="--">
+      </div>
+    `;
+  } else if(type === 'variable'){
+    container.innerHTML = `
+      <div class="section-title">Variable-length Settings</div>
+      <div style="font-size:13px; color:var(--muted)">Placement policy: choose First/Best/Worst-fit</div>
+      <div style="margin-top:8px">
+         <select id="placementLocal" class="select">
+           <option value="first">First-fit</option>
+           <option value="best">Best-fit</option>
+           <option value="worst">Worst-fit</option>
+         </select>
+      </div>
+    `;
+  } else if(type==='indexed'){
+    container.innerHTML = `
+      <div class="section-title">Indexed Settings</div>
+      <div style="font-size:13px; color:var(--muted)">Single-level index (id -> physical)</div>
+      <div style="margin-top:8px">
+        <input id="indexBucket" class="input" placeholder="Index bucket size (optional)">
+      </div>
+    `;
+  } else if(type==='hash'){
+    container.innerHTML = `
+      <div class="section-title">Hash Settings</div>
+      <div style="font-size:13px; color:var(--muted)">Choose table size and collision method</div>
+      <div style="margin-top:8px">
+        <input id="hashSizeLocal" class="input" placeholder="Hash table size (buckets)" value="11">
+        <select id="hashMethodLocal" class="select" style="margin-top:6px">
+          <option value="chaining">Chaining</option>
+          <option value="linear">Linear probing</option>
+        </select>
+      </div>
+    `;
+  } else if(type==='btree'){
+    container.innerHTML = `
+      <div class="section-title">B-Tree Overview</div>
+      <div style="font-size:13px; color:var(--muted)">This view gives a conceptual visualization of tree nodes.</div>
+      <div style="margin-top:8px">
+        <input id="bOrder" class="input" placeholder="B-Tree order (m)" value="3">
+      </div>
+    `;
+  }
+}
+
+// RESET simulation
+function resetSim(){
+  STATE.records = [];
+  STATE.blocks = [];
+  STATE.avail = [{start:0, length: STATE.capacity}];
+  STATE.index = {};
+  STATE.hash = null;
+  STATE.used = 0;
+  STATE.stepQueue = [];
+  render();
+  updateStats();
+  $('actionLog').innerText = '';
+  $('stepsPanel').innerHTML = '';
+}
+
+// Actions
+function actionInsert(stepMode=true){
+  const idVal = parseInt($('inputId').value) || null;
+  const sizeVal = parseInt($('inputSize').value) || null;
+  const nameVal = $('inputName').value || '';
+
+  if(!sizeVal || sizeVal <= 0){
+    alert('Enter a valid positive size (bytes)');
+    return;
+  }
+  const record = { id: idVal ?? generateId(), size: sizeVal, name: nameVal || `R${generateId()}` };
+
+  if(STATE.simType === 'sequential') {
+    insertSequential(record, stepMode);
+  } else if(STATE.simType === 'variable') {
+    const policy = $('placementLocal') ? $('placementLocal').value : $('placement').value;
+    insertVariable(record, policy, stepMode);
+  } else if(STATE.simType === 'indexed'){
+    insertIndexed(record, stepMode);
+  } else if(STATE.simType === 'hash'){
+    const size = parseInt($('hashSizeLocal') ? $('hashSizeLocal').value : $('hashSize').value) || 11;
+    const method = $('hashMethodLocal') ? $('hashMethodLocal').value : $('collision').value;
+    insertHash(record, size, method, stepMode);
+  } else if(STATE.simType === 'btree'){
+    insertBTree(record, stepMode);
+  }
+}
+
+// generate sequential id
+function generateId(){
+  return Math.floor(Math.random()*9000)+100;
+}
+
+/* -------------------------
+   Sequential Implementation
+   ------------------------- */
+function insertSequential(record, stepMode){
+  // just push then sort by id
+  STATE.records.push(record);
+  STATE.records.sort((a,b)=>a.id - b.id);
+  // each record occupies block of size (size) in sequence; create blocks for visualization
+  rebuildSequentialBlocks();
+  log(`Inserted sequential record id=${record.id} size=${record.size}`);
+  updateStats();
+  if(stepMode) addStep(`Insert sequential id=${record.id}`);
+  render();
+}
+
+function rebuildSequentialBlocks(){
+  STATE.blocks = [];
+  let offset = 0;
+  for(const r of STATE.records){
+    STATE.blocks.push({ start: offset, length: r.size, id: r.id, name: r.name });
+    offset += r.size;
+  }
+  STATE.used = offset;
+  // avail becomes single remaining block
+  const free = Math.max(STATE.capacity - STATE.used, 0);
+  STATE.avail = free>0 ? [{start: STATE.used, length: free}] : [];
+}
+
+/* -------------------------
+   Variable-length Implementation
+   ------------------------- */
+function insertVariable(record, policy='first', stepMode=true){
+  // placement: find avail slot
+  const availList = STATE.avail.slice(); // clone
+  let chosenIndex = -1;
+  if(availList.length===0){
+    // no free space
+    alert('No free space. Consider compacting.');
+    return;
+  }
+  if(policy==='first'){
+    chosenIndex = 0;
+  } else if(policy==='best'){
+    // pick smallest that fits
+    let best = Infinity;
+    availList.forEach((a,i) => {
+      if(a.length >= record.size && a.length < best){ best = a.length; chosenIndex = i; }
+    });
+    if(chosenIndex===-1) chosenIndex = availList.findIndex(a=>a.length>=record.size);
+  } else if(policy==='worst'){
+    let worst = -1;
+    availList.forEach((a,i) => {
+      if(a.length >= record.size && a.length > worst){ worst = a.length; chosenIndex = i; }
+    });
+    if(chosenIndex===-1) chosenIndex = availList.findIndex(a=>a.length>=record.size);
+  }
+  if(chosenIndex===-1){ alert('No suitable free block found for record size'); return; }
+
+  const slot = STATE.avail[chosenIndex];
+  const placed = { start: slot.start, length: record.size, id: record.id, name: record.name };
+  // reduce avail
+  const remaining = slot.length - record.size;
+  if(remaining>0){
+    STATE.avail[chosenIndex] = { start: slot.start + record.size, length: remaining };
+  } else {
+    STATE.avail.splice(chosenIndex,1);
+  }
+  STATE.blocks.push(placed);
+  // sort blocks by start for visualization
+  STATE.blocks.sort((a,b)=>a.start - b.start);
+  STATE.used += record.size;
+  addStep(`Placed record id=${record.id} at ${placed.start} size=${placed.length}`);
+  log(`Variable insert id=${record.id} size=${record.size} policy=${policy}`);
+  updateStats();
+  render();
+}
+
+function compactVariable(){
+  if(STATE.simType!=='variable') { alert('Compact only applies to variable-length simulation'); return; }
+  if(STATE.blocks.length<=1) return;
+  // move all blocks to the front
+  let offset = 0;
+  for(let i=0;i<STATE.blocks.length;i++){
+    const b = STATE.blocks[i];
+    b.start = offset;
+    offset += b.length;
+  }
+  STATE.avail = offset < STATE.capacity ? [{start: offset, length: STATE.capacity - offset}] : [];
+  addStep('Compacted free space');
+  log('Compaction performed');
+  render();
+}
+
+/* -------------------------
+   Indexed Implementation (single-level)
+   ------------------------- */
+function insertIndexed(record, stepMode=true){
+  // store record in blocks (append)
+  const last = STATE.blocks.length>0 ? STATE.blocks[STATE.blocks.length-1] : null;
+  const start = last ? last.start + last.length : 0;
+  const placed = { start, length: record.size, id: record.id, name: record.name };
+  STATE.blocks.push(placed);
+  STATE.index[record.id] = placed.start;
+  STATE.used += record.size;
+  STATE.avail = STATE.avail.filter(a => a.length>0);
+  addStep(`Indexed insert id=${record.id} -> location ${placed.start}`);
+  log(`Indexed insert id=${record.id} size=${record.size}`);
+  updateStats();
+  render();
+}
+
+/* -------------------------
+   Hash Implementation (chaining or linear)
+   ------------------------- */
+function initHash(tableSize=11, method='chaining'){
+  STATE.hash = { buckets: Array.from({length:tableSize}, ()=>[]), method, size: tableSize };
+  STATE.blocks = []; STATE.records=[]; STATE.used=0; STATE.avail = [{start:0, length: STATE.capacity}];
+  log(`Initialized hash table with ${tableSize} buckets, method=${method}`);
+  render();
+}
+function insertHash(record, tableSize=11, method='chaining', stepMode=true){
+  if(!STATE.hash) initHash(tableSize,method);
+  const key = record.id % STATE.hash.size;
+  if(method==='chaining'){
+    STATE.hash.buckets[key].push(record);
+    addStep(`Hashed id=${record.id} to bucket ${key} (chaining)`);
+  } else {
+    // linear probing into buckets
+    let idx = key;
+    for(let i=0;i<STATE.hash.size;i++){
+      const arr = STATE.hash.buckets[idx];
+      if(arr.length===0 || !arr[0].__occupied){
+        // place record as slot
+        STATE.hash.buckets[idx] = [record];
+        STATE.hash.buckets[idx][0].__occupied = true;
+        addStep(`Placed id=${record.id} at slot ${idx} (linear probe)`);
+        break;
+      } else {
+        idx = (idx+1) % STATE.hash.size;
+      }
+    }
+  }
+  STATE.records.push(record);
+  log(`Hash insert id=${record.id} into ${key}`);
+  updateStats();
+  render();
+}
+function rehash(){
+  if(!STATE.hash) { alert('No hash table active'); return; }
+  // double size and reinsert
+  const old = JSON.parse(JSON.stringify(STATE.hash));
+  initHash(old.size * 2, old.method);
+  for(const b of old.buckets){
+    for(const r of b) insertHash(r, STATE.hash.size, STATE.hash.method, false);
+  }
+  addStep('Rehashed table to double size');
+  log('Rehash complete');
+}
+
+/* -------------------------
+   B-Tree Overview (visual only)
+   ------------------------- */
+function insertBTree(record, stepMode=true){
+  // for demo: maintain small node arrays
+  // We'll keep a simple array structure for visualization, not full algorithms
+  if(!STATE.btree) STATE.btree = { nodes: [ {id:'root', keys: [], children: []} ] };
+  // insert into root keys for visualization
+  const root = STATE.btree.nodes[0];
+  root.keys.push(record.id);
+  root.keys.sort((a,b)=>a-b);
+  addStep(`Inserted ${record.id} into B-Tree root keys`);
+  log(`B-Tree demo insert id=${record.id}`);
+  render();
+}
+
+/* -------------------------
+   Step runner & animation helpers
+   ------------------------- */
+function addStep(text){
+  const panel = $('stepsPanel');
+  const el = document.createElement('div');
+  el.className = 'step';
+  el.innerText = text;
+  panel.prepend(el);
+}
+function stepOnce(){
+  if(STATE.stepQueue.length===0){ log('No more steps in queue'); return; }
+  const s = STATE.stepQueue.shift();
+  // execute step (for now steps are just text)
+  addStep(`Executed: ${s}`);
+  log(`Step executed: ${s}`);
+}
+
+function runFast(){
+  while(STATE.stepQueue.length>0){
+    const s = STATE.stepQueue.shift();
+    addStep(`Executed: ${s}`);
+  }
+  log('Finished fast run');
+}
+
+/* -------------------------
+   Render / Visuals
+   ------------------------- */
+function render(){
+  // update visual canvas based on simType and state
+  const area = $('visualCanvas');
+  area.innerHTML = '';
+
+  if(STATE.simType==='sequential'){
+    renderSequential(area);
+  } else if(STATE.simType==='variable'){
+    renderVariable(area);
+  } else if(STATE.simType==='indexed'){
+    renderIndexed(area);
+  } else if(STATE.simType==='hash'){
+    renderHash(area);
+  } else if(STATE.simType==='btree'){
+    renderBTree(area);
+  }
+  $('statCount').innerText = STATE.records.length;
+  $('statUsed').innerText = STATE.used;
+  $('statFree').innerText = Math.max(STATE.capacity - STATE.used, 0);
+}
+
+function renderSequential(area){
+  // visual: horizontal sequence of blocks representing records and free space
+  const wrap = document.createElement('div');
+  wrap.style.display = 'flex';
+  wrap.style.flexDirection = 'column';
+  wrap.style.gap = '10px';
+
+  // show blocks as linear sequence
+  const row = document.createElement('div');
+  row.style.display = 'flex';
+  row.style.alignItems = 'center';
+  row.style.flexWrap = 'wrap';
+  row.style.padding = '8px';
+  row.style.borderRadius = '8px';
+
+  // make visualization scale: compute ratio
+  const total = Math.max(STATE.used, STATE.capacity);
+  const scale = 700 / (total || 1);
+
+  // render records as blocks
+  for(const b of STATE.blocks){
+    const el = document.createElement('div');
+    el.className = 'block';
+    el.style.width = Math.max(30, b.length * scale) + 'px';
+    el.style.height = '48px';
+    el.style.background = `linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01))`;
+    el.style.animation = 'floatIn .4s ease';
+    el.style.display = 'flex';
+    el.style.alignItems = 'center';
+    el.style.justifyContent = 'center';
+    el.innerHTML = `<div style="color:var(--muted); font-size:12px">ID:${b.id}<div style="font-size:11px; color:#bcd3ff">${b.length} bytes</div></div>`;
+    row.appendChild(el);
+  }
+
+  // free block if any
+  const free = STATE.capacity - STATE.used;
+  if(free>0){
+    const el = document.createElement('div');
+    el.className = 'block';
+    el.style.width = Math.max(30, free * scale) + 'px';
+    el.style.height = '48px';
+    el.style.display = 'flex';
+    el.style.alignItems = 'center';
+    el.style.justifyContent = 'center';
+    el.style.background = 'linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01))';
+    el.innerHTML = `<div style="color:var(--muted); font-size:12px">FREE <div style="font-size:11px; color:#bcd3ff">${free} bytes</div></div>`;
+    row.appendChild(el);
+  }
+
+  wrap.appendChild(row);
+
+  // show legend / details
+  const details = document.createElement('div');
+  details.style.marginTop = '8px';
+  details.style.fontSize = '13px';
+  details.style.color = 'var(--muted)';
+  details.innerHTML = `<div>Total capacity: ${STATE.capacity} bytes</div><div>Used: ${STATE.used} bytes - Blocks: ${STATE.blocks.length}</div>`;
+  wrap.appendChild(details);
+
+  area.appendChild(wrap);
+}
+
+function renderVariable(area){
+  const wrap = document.createElement('div');
+  wrap.style.display='flex';
+  wrap.style.flexDirection='column';
+  wrap.style.gap='8px';
+
+  // sort free and blocks by start
+  const all = [];
+  for(const b of STATE.blocks) all.push(Object.assign({type:'used'}, b));
+  for(const f of STATE.avail) all.push(Object.assign({type:'free'}, f));
+  all.sort((a,b) => a.start - b.start);
+
+  // create visual linear view
+  const row = document.createElement('div');
+  row.style.display='flex';
+  row.style.padding='8px';
+  row.style.gap='8px';
+  row.style.flexWrap='wrap';
+  const scale = 600 / STATE.capacity;
+  for(const seg of all){
+    const el = document.createElement('div');
+    el.className = 'block';
+    el.style.width = Math.max(30, seg.length * scale) + 'px';
+    el.style.height = '48px';
+    el.style.display = 'flex';
+    el.style.alignItems = 'center';
+    el.style.justifyContent = 'center';
+    if(seg.type==='used'){
+      el.style.background = 'linear-gradient(90deg,#ffd54f,#ffb300)';
+      el.innerHTML = `<div style="color:#081b2b;font-size:12px">ID:${seg.id}<div style="font-size:11px">${seg.length}b</div></div>`;
+    } else {
+      el.style.background = 'linear-gradient(90deg,#334155,#1f2937)';
+      el.innerHTML = `<div style="color:#cfe8ff;font-size:12px">FREE<div style="font-size:11px">${seg.length}b</div></div>`;
+    }
+    row.appendChild(el);
+  }
+  wrap.appendChild(row);
+  area.appendChild(wrap);
+}
+
+function renderIndexed(area){
+  const wrap = document.createElement('div');
+  wrap.style.display='flex';
+  wrap.style.flexDirection='column';
+  wrap.style.gap='8px';
+
+  const indexDiv = document.createElement('div');
+  indexDiv.style.display='grid';
+  indexDiv.style.gridTemplateColumns='repeat(2,1fr)';
+  indexDiv.style.gap='8px';
+
+  // build index listing
+  for(const r of STATE.blocks){
+    const box = document.createElement('div');
+    box.className='block';
+    box.style.width='100%';
+    box.style.height='48px';
+    box.style.display='flex';
+    box.style.alignItems='center';
+    box.style.justifyContent='space-between';
+    box.style.padding='8px';
+    box.innerHTML = `<div style="font-size:13px; color:var(--muted)">ID ${r.id}</div><div style="font-size:12px; color:#bcd3ff">${r.start} @ ${r.length}b</div>`;
+    indexDiv.appendChild(box);
+  }
+  wrap.appendChild(indexDiv);
+  area.appendChild(wrap);
+}
+
+function renderHash(area){
+  if(!STATE.hash){
+    const btn = document.createElement('div');
+    btn.innerHTML = `<div style="color:var(--muted)">No hash table initialized. Use Hash settings and Insert.</div>`;
+    area.appendChild(btn);
+    return;
+  }
+  const wrap = document.createElement('div');
+  wrap.style.display='flex';
+  wrap.style.flexDirection='column';
+  wrap.style.gap='8px';
+  const table = document.createElement('div');
+  table.style.display='grid';
+  table.style.gridTemplateColumns = `repeat(${Math.min(STATE.hash.size,6)},1fr)`;
+  table.style.gap='8px';
+
+  for(let i=0;i<STATE.hash.size;i++){
+    const col = document.createElement('div');
+    col.style.minHeight='80px';
+    col.style.padding='8px';
+    col.style.borderRadius='8px';
+    col.style.background='linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01))';
+    col.innerHTML = `<div style="font-weight:600; font-size:12px">Bucket ${i}</div>`;
+    const list = document.createElement('div');
+    list.style.marginTop='6px';
+    for(const r of STATE.hash.buckets[i]){
+      const el = document.createElement('div');
+      el.className='block';
+      el.style.width='100%';
+      el.style.height='34px';
+      el.style.margin='6px 0';
+      el.style.display='flex';
+      el.style.alignItems='center';
+      el.style.justifyContent='center';
+      el.style.background='linear-gradient(90deg,#f97316,#fb923c)';
+      el.innerHTML = `<div style="font-size:12px;color:#071331">${r.id}</div>`;
+      list.appendChild(el);
+    }
+    col.appendChild(list);
+    table.appendChild(col);
+  }
+  wrap.appendChild(table);
+  area.appendChild(wrap);
+}
+
+function renderBTree(area){
+  const wrap = document.createElement('div');
+  wrap.style.display='flex';
+  wrap.style.flexDirection='column';
+  wrap.style.gap='8px';
+  // simply render keys at root
+  const node = STATE.btree ? STATE.btree.nodes[0] : { keys: [] };
+  const nodeBox = document.createElement('div');
+  nodeBox.style.display='flex'; nodeBox.style.gap='8px';
+  for(const k of node.keys){
+    const el = document.createElement('div');
+    el.className='block';
+    el.style.width='64px'; el.style.height='48px';
+    el.style.display='flex'; el.style.alignItems='center'; el.style.justifyContent='center';
+    el.style.background='linear-gradient(90deg,#60a5fa,#3b82f6)';
+    el.innerHTML = `<div style="font-weight:700">${k}</div>`;
+    nodeBox.appendChild(el);
+  }
+  wrap.appendChild(nodeBox);
+  area.appendChild(wrap);
+}
+
+/* -------------------------
+   Search / Delete
+   ------------------------- */
+function actionSearch(){
+  const id = parseInt($('inputId').value);
+  if(!id){ alert('Enter integer ID to search'); return; }
+  if(STATE.simType==='sequential'){
+    const found = STATE.records.find(r=>r.id===id);
+    if(found) { addStep(`Found sequential id=${id}`); log(`Search found id=${id}`); alert(`Found id=${id} size=${found.size}`); }
+    else { log(`Search miss id=${id}`); alert('Not found'); }
+  } else if(STATE.simType==='variable'){
+    const found = STATE.blocks.find(b=>b.id===id);
+    if(found) { addStep(`Found variable id=${id}`); alert(`Found at ${found.start} size=${found.length}`); }
+    else alert('Not found');
+  } else if(STATE.simType==='indexed'){
+    if(STATE.index[id] !== undefined){ alert(`Found at ${STATE.index[id]}`); } else alert('Not found');
+  } else if(STATE.simType==='hash'){
+    if(!STATE.hash){ alert('No hash table'); return; }
+    const key = id % STATE.hash.size; const arr = STATE.hash.buckets[key] || [];
+    const found = arr.find(r=>r.id===id);
+    if(found) alert(`Found in bucket ${key}`); else alert('Not found');
+  } else alert('Search not supported here');
+}
+
+function actionDelete(){
+  const id = parseInt($('inputId').value);
+  if(!id){ alert('Enter integer ID to delete'); return; }
+  if(STATE.simType==='sequential'){
+    STATE.records = STATE.records.filter(r=>r.id!==id);
+    rebuildSequentialBlocks();
+    log(`Deleted sequential id=${id}`);
+    addStep(`Delete id=${id}`);
+  } else if(STATE.simType==='variable'){
+    const idx = STATE.blocks.findIndex(b=>b.id===id);
+    if(idx===-1){ alert('Not found'); return; }
+    const b = STATE.blocks.splice(idx,1)[0];
+    // add free slot and merge
+    STATE.avail.push({start: b.start, length: b.length});
+    STATE.avail = mergeAvail(STATE.avail);
+    STATE.used -= b.length;
+    log(`Deleted variable id=${id}`);
+    addStep(`Deleted id=${id}`);
+  } else if(STATE.simType==='indexed'){
+    const idx = STATE.blocks.findIndex(b=>b.id===id);
+    if(idx>=0){ const b=STATE.blocks.splice(idx,1)[0]; delete STATE.index[id]; STATE.used -= b.length; log(`Deleted indexed id=${id}`); addStep(`Deleted id=${id}`); }
+    else alert('Not found');
+  } else if(STATE.simType==='hash'){
+    if(!STATE.hash) return alert('No hash table');
+    const key = id % STATE.hash.size;
+    STATE.hash.buckets[key] = STATE.hash.buckets[key].filter(r=>r.id!==id);
+    log(`Deleted hash id=${id} from bucket ${key}`);
+    addStep(`Deleted id=${id}`);
+  } else alert('Delete not supported here');
+  updateStats();
+  render();
+}
+
+function mergeAvail(av){
+  if(av.length<=1) return av;
+  av.sort((a,b)=>a.start - b.start);
+  const res = [];
+  let cur = av[0];
+  for(let i=1;i<av.length;i++){
+    const it = av[i];
+    if(cur.start + cur.length >= it.start){
+      // merge overlap or adjacent
+      cur.length = Math.max(cur.length, (it.start + it.length) - cur.start);
+    } else {
+      res.push(cur);
+      cur = it;
+    }
+  }
+  res.push(cur);
+  return res;
+}
+
+/* -------------------------
+   Utilities: random fill, demo load, export/import
+   ------------------------- */
+function randomFill(){
+  if(STATE.simType==='variable') {
+    // random allocate some records
+    for(let i=0;i<5;i++){
+      const rec = { id: generateId(), size: Math.floor(Math.random()*120)+20, name:`R${i}` };
+      insertVariable(rec, $('placementLocal')?$('placementLocal').value:$('placement').value, false);
+    }
+    log('Random fill inserted (variable)');
+  } else if(STATE.simType==='sequential'){
+    for(let i=0;i<6;i++){
+      const rec = { id: generateId(), size: Math.floor(Math.random()*80)+20, name:`R${i}` };
+      insertSequential(rec,false);
+    }
+    log('Random fill inserted (sequential)');
+  } else {
+    alert('Random fill supports sequential/variable modes');
+  }
+  render();
+}
+
+async function loadDemo(){
+  // call backend to get demo dataset
+  try{
+    const res = await fetch('/api/simulate', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'demo', demoType: STATE.simType==='variable' ? 'variable' : 'sequential' })});
+    const data = await res.json();
+    if(data.records){
+      resetSim();
+      for(const r of data.records){
+        if(STATE.simType==='variable') insertVariable(r, $('placementLocal')?$('placementLocal').value:'first', false);
+        else insertSequential(r,false);
+      }
+      log('Demo loaded');
+    } else alert('No demo data');
+  } catch(err){ alert('Demo load failed'); console.error(err) }
+}
+
+function exportText(){
+  // prepare export
+  const obj = { simType: STATE.simType, blocks: STATE.blocks, avail: STATE.avail, stats: {used: STATE.used, capacity: STATE.capacity} };
+  // call server to generate downloadable file
+  fetch('/api/simulate', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'export', payload: JSON.stringify(obj, null, 2) })})
+  .then(r=>r.text()).then(t=>{
+    // create a local blob and trigger download
+    const blob = new Blob([t], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'simulation_export.txt';
+    a.click();
+    log('Exported simulation to file');
+  }).catch(err => { alert('Export failed'); console.error(err) });
+}
+
+function importPrompt(){
+  const txt = prompt('Paste simulation JSON data here (from export) — click OK to import');
+  try{
+    const obj = JSON.parse(txt);
+    if(obj && obj.blocks){
+      resetSim();
+      STATE.blocks = obj.blocks;
+      STATE.avail = obj.avail || [];
+      STATE.simType = obj.simType || STATE.simType;
+      STATE.used = obj.stats ? obj.stats.used : STATE.blocks.reduce((s,b)=>s+b.length,0);
+      render();
+      log('Imported simulation data');
+    } else alert('Invalid data');
+  } catch(e){ alert('Import failed: invalid JSON'); }
+}
+
+function saveLocal(){
+  const key = 'fos_sim_save';
+  const payload = JSON.stringify({ simType: STATE.simType, blocks: STATE.blocks, avail: STATE.avail, used: STATE.used });
+  localStorage.setItem(key, payload);
+  alert('Saved locally');
+}
+function loadLocal(){
+  const key = 'fos_sim_save';
+  const payload = localStorage.getItem(key);
+  if(!payload) return alert('No local save');
+  const obj = JSON.parse(payload);
+  STATE.simType = obj.simType || STATE.simType;
+  STATE.blocks = obj.blocks || [];
+  STATE.avail = obj.avail || [];
+  STATE.used = obj.used || 0;
+  render();
+  log('Loaded local save');
+}
+
+/* -------------------------
+   Stats update
+   ------------------------- */
+function updateStats(){
+  $('statCount').innerText = STATE.blocks.length;
+  $('statUsed').innerText = STATE.used;
+  $('statFree').innerText = Math.max(STATE.capacity - STATE.used, 0);
+}
+
+/* -------------------------
+   Theme switching & helpers
+   ------------------------- */
+function applyTheme(name){
+  if(name==='light'){
+    document.documentElement.style.setProperty('--bg-1','#f7fafc');
+    document.documentElement.style.setProperty('--bg-2','#eef2ff');
+    document.documentElement.style.setProperty('--muted','#374151');
+    document.documentElement.style.setProperty('--panel','rgba(0,0,0,0.03)');
+  } else if(name==='dark'){
+    document.documentElement.style.setProperty('--bg-1','#071427');
+    document.documentElement.style.setProperty('--bg-2','#0b1220');
+    document.documentElement.style.setProperty('--muted','#9fb0d9');
+    document.documentElement.style.setProperty('--panel','rgba(255,255,255,0.03)');
+  } else if(name==='blue'){
+    document.documentElement.style.setProperty('--bg-1','#0f1724');
+    document.documentElement.style.setProperty('--bg-2','#12263a');
+    document.documentElement.style.setProperty('--muted','#cfe8ff');
+    document.documentElement.style.setProperty('--panel','rgba(255,255,255,0.02)');
+  } else if(name==='green'){
+    document.documentElement.style.setProperty('--bg-1','#022b3a');
+    document.documentElement.style.setProperty('--bg-2','#0f766e');
+    document.documentElement.style.setProperty('--muted','#cdeedd');
+    document.documentElement.style.setProperty('--panel','rgba(255,255,255,0.02)');
+  }
+  document.documentElement.style.setProperty('--accent','#6a11cb');
+}
+
+/* -------------------------
+   Initialization
+   ------------------------- */
+resetSim();
+applyTheme('blue');
+log('Initialized simulator');
+render();
+
+// Auto-run UI updates
+setInterval(()=>{ $('msg-count') && ($('msg-count').innerText = `Total Messages: ${STATE.blocks.length}`); }, 1500);
+</script>
+</body>
+</html>
